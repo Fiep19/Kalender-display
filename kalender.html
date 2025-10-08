@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>4‑Week Kalender</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-auto-rows: 100px;
+      border: 1px solid #ccc;
+    }
+    .day {
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+      padding: 4px;
+    }
+    .day header {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .event {
+      margin: 2px 0;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 0.85em;
+      color: white;
+    }
+    .event.joost {
+      background-color: #4a90e2;
+    }
+    .event.bianca {
+      background-color: #e24a6f;
+    }
+    .month-label {
+      text-align: center;
+      font-size: 1.5em;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+
+<div class="month-label" id="monthLabel"></div>
+<div class="calendar" id="calendarGrid"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.4.0/ical.min.js"></script>
+<script>
+  const urls = [
+    { url: 'https://calendar.google.com/calendar/ical/fiepwestendorp8%40gmail.com/private-8eb46b199df4f4da0dc6b7604fcfbafd/basic.ics', tag: 'joost' },
+    { url: 'https://calendar.google.com/calendar/ical/bjm.linthorst%40gmail.com/private-13952ca9027a1723a994c5455edef7c7/basic.ics', tag: 'bianca' }
+  ];
+
+  async function fetchICal(url) {
+    const resp = await fetch(url);
+    const text = await resp.text();
+    return ICAL.parse(text);
+  }
+
+  function getEventsFromCalendar(jcal, tag) {
+    const comp = new ICAL.Component(jcal);
+    const vevents = comp.getAllSubcomponents('vevent');
+    return vevents.map(ev => {
+      const e = new ICAL.Event(ev);
+      return {
+        start: e.startDate.toJSDate(),
+        end: e.endDate.toJSDate(),
+        summary: e.summary,
+        tag
+      };
+    });
+  }
+
+  function getStartOfMondayWeek(d) {
+    const day = d.getDay();
+    const diff = (day + 6) % 7;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - diff);
+    monday.setHours(0,0,0,0);
+    return monday;
+  }
+
+  function addDays(d, n) {
+    const nd = new Date(d);
+    nd.setDate(d.getDate() + n);
+    return nd;
+  }
+
+  function sameDate(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth() === b.getMonth() &&
+           a.getDate() === b.getDate();
+  }
+
+  async function buildCalendar() {
+    const allEvents = [];
+    for (let obj of urls) {
+      const jcal = await fetchICal(obj.url);
+      const evs = getEventsFromCalendar(jcal, obj.tag);
+      allEvents.push(...evs);
+    }
+
+    const today = new Date();
+    const startOfCurrentWeek = getStartOfMondayWeek(today);
+    const calendarStart = addDays(startOfCurrentWeek, -7);
+
+    const midDate = addDays(calendarStart, 14);
+    const monthNames = [
+      'januari','februari','maart','april','mei','juni',
+      'juli','augustus','september','oktober','november','december'
+    ];
+    document.getElementById('monthLabel').innerText =
+      monthNames[midDate.getMonth()] + ' ' + midDate.getFullYear();
+
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+
+    for (let week = 0; week < 4; week++) {
+      for (let weekday = 0; weekday < 7; weekday++) {
+        const cellDate = addDays(calendarStart, week * 7 + weekday);
+        const cellEl = document.createElement('div');
+        cellEl.className = 'day';
+        const header = document.createElement('header');
+        header.innerText = cellDate.getDate();
+        cellEl.appendChild(header);
+
+        for (let ev of allEvents) {
+          if (sameDate(ev.start, cellDate)) {
+            const evEl = document.createElement('div');
+            evEl.className = 'event ' + ev.tag;
+            evEl.innerText = ev.summary;
+            cellEl.appendChild(evEl);
+          }
+        }
+        grid.appendChild(cellEl);
+      }
+    }
+  }
+
+  buildCalendar();
+  setInterval(buildCalendar, 10 * 60 * 1000);
+</script>
+
+</body>
+</html>
